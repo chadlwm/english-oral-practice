@@ -26,6 +26,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
@@ -68,11 +69,23 @@ fun LibraryScreen(
     val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsState()
     var videoToDelete by remember { mutableStateOf<VideoItem?>(null) }
+    var videoToReauthorize by remember { mutableStateOf<VideoItem?>(null) }
     
     val videoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri: Uri? ->
         uri?.let { viewModel.importVideo(it) }
+    }
+    
+    val reauthorizePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri: Uri? ->
+        uri?.let { newUri ->
+            videoToReauthorize?.let { video ->
+                viewModel.reauthorizeVideo(video.id, newUri)
+            }
+        }
+        videoToReauthorize = null
     }
     
     LaunchedEffect(Unit) {
@@ -89,6 +102,13 @@ fun LibraryScreen(
                     Toast.makeText(
                         context,
                         context.getString(R.string.import_success),
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+                is LibraryEvent.ReauthorizeSuccess -> {
+                    Toast.makeText(
+                        context,
+                        context.getString(R.string.reauthorize_success),
                         Toast.LENGTH_SHORT
                     ).show()
                 }
@@ -142,7 +162,11 @@ fun LibraryScreen(
                     VideoList(
                         videos = uiState.videos,
                         onVideoClick = viewModel::onVideoClick,
-                        onDeleteClick = { videoToDelete = it }
+                        onDeleteClick = { videoToDelete = it },
+                        onReauthorizeClick = { video ->
+                            videoToReauthorize = video
+                            reauthorizePickerLauncher.launch(arrayOf("video/*"))
+                        }
                     )
                 }
             }
@@ -194,7 +218,8 @@ private fun EmptyLibraryContent(modifier: Modifier = Modifier) {
 private fun VideoList(
     videos: List<VideoItem>,
     onVideoClick: (Long) -> Unit,
-    onDeleteClick: (VideoItem) -> Unit
+    onDeleteClick: (VideoItem) -> Unit,
+    onReauthorizeClick: (VideoItem) -> Unit
 ) {
     LazyColumn(
         contentPadding = PaddingValues(16.dp),
@@ -207,7 +232,8 @@ private fun VideoList(
             VideoListItem(
                 video = video,
                 onClick = { onVideoClick(video.id) },
-                onDeleteClick = { onDeleteClick(video) }
+                onDeleteClick = { onDeleteClick(video) },
+                onReauthorizeClick = { onReauthorizeClick(video) }
             )
         }
     }
@@ -217,7 +243,8 @@ private fun VideoList(
 private fun VideoListItem(
     video: VideoItem,
     onClick: () -> Unit,
-    onDeleteClick: () -> Unit
+    onDeleteClick: () -> Unit,
+    onReauthorizeClick: () -> Unit
 ) {
     Card(
         modifier = Modifier
@@ -288,10 +315,20 @@ private fun VideoListItem(
                 )
             }
             
+            if (!video.isPlayable) {
+                IconButton(onClick = onReauthorizeClick) {
+                    Icon(
+                        imageVector = Icons.Default.Refresh,
+                        contentDescription = stringResource(R.string.reauthorize_action),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+            
             IconButton(onClick = onDeleteClick) {
                 Icon(
                     imageVector = Icons.Default.Delete,
-                    contentDescription = "Delete",
+                    contentDescription = stringResource(R.string.delete_action),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                 )
             }
@@ -307,16 +344,16 @@ private fun DeleteConfirmDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Delete Video") },
-        text = { Text("Remove \"$videoTitle\" from your library?") },
+        title = { Text(stringResource(R.string.delete_dialog_title)) },
+        text = { Text(stringResource(R.string.delete_dialog_message, videoTitle)) },
         confirmButton = {
             TextButton(onClick = onConfirm) {
-                Text("Delete")
+                Text(stringResource(R.string.delete_action))
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Cancel")
+                Text(stringResource(R.string.cancel_action))
             }
         }
     )

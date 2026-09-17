@@ -9,14 +9,14 @@ import com.example.englishoralpractice.library.VideoImporter
 import com.example.englishoralpractice.library.data.VideoEntity
 import com.example.englishoralpractice.library.domain.ImportError
 import com.example.englishoralpractice.library.domain.ImportResult
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
-import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 data class LibraryUiState(
     val isLoading: Boolean = false,
@@ -34,6 +34,7 @@ data class VideoItem(
 sealed class LibraryEvent {
     data class ImportError(val error: com.example.englishoralpractice.library.domain.ImportError) : LibraryEvent()
     data class ImportSuccess(val videoId: Long) : LibraryEvent()
+    data class ReauthorizeSuccess(val videoId: Long) : LibraryEvent()
     data class NavigateToPlayer(val videoId: Long) : LibraryEvent()
 }
 
@@ -51,14 +52,15 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
     
     init {
         viewModelScope.launch {
-            videoDao.getAllVideos()
-                .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
-                .collect { videos ->
-                    _uiState.value = LibraryUiState(
-                        isLoading = false,
-                        videos = videos.map { it.toVideoItem() }
-                    )
+            videoDao.getAllVideos().collect { videos ->
+                val videoItems = withContext(Dispatchers.IO) {
+                    videos.map { it.toVideoItem() }
                 }
+                _uiState.value = LibraryUiState(
+                    isLoading = false,
+                    videos = videoItems
+                )
+            }
         }
     }
     
@@ -69,6 +71,23 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
             when (val result = videoImporter.importVideo(uri)) {
                 is ImportResult.Success -> {
                     _events.emit(LibraryEvent.ImportSuccess(result.videoId))
+                }
+                is ImportResult.Error -> {
+                    _events.emit(LibraryEvent.ImportError(result.error))
+                }
+            }
+            
+            _uiState.value = _uiState.value.copy(isLoading = false)
+        }
+    }
+    
+    fun reauthorizeVideo(videoId: Long, newUri: Uri) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoading = true)
+            
+            when (val result = videoImporter.reauthorizeVideo(videoId, newUri)) {
+                is ImportResult.Success -> {
+                    _events.emit(LibraryEvent.ReauthorizeSuccess(result.videoId))
                 }
                 is ImportResult.Error -> {
                     _events.emit(LibraryEvent.ImportError(result.error))
@@ -90,7 +109,13 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
     
     fun deleteVideo(videoId: Long) {
         viewModelScope.launch {
-            videoDao.deleteVideoById(videoId)
+            withContext(Dispatchers.IO) {
+                val video = videoDao.getVideoById(videoId)
+                if (video != null) {
+                    videoImporter.releasePersistablePermission(Uri.parse(video.uri))
+                    videoDao.deleteVideoById(videoId)
+                }
+            }
         }
     }
     

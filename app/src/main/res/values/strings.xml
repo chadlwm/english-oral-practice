@@ -6,7 +6,7 @@
     <string name="library_title">My Videos</string>
     <string name="library_empty">No videos yet.\nTap + to import a video.</string>
     <string name="library_import">Import Video</string>
-    <string name="library_item_corrupted">Unable to load</string>
+    <string name="library_item_corrupted">Unable to load - tap to re-authorize</string>
     
     <!-- Import -->
     <string name="import_error_unsupported_format">Unsupported format. Please select mp4, mkv, or webm files only.</string>
@@ -15,6 +15,16 @@
     <string name="import_error_permission">Permission denied. Please grant access to read this file.</string>
     <string name="import_error_unknown">Failed to import video.</string>
     <string name="import_success">Video imported successfully!</string>
+    <string name="reauthorize_success">Video re-authorized successfully!</string>
+    
+    <!-- Actions -->
+    <string name="reauthorize_action">Re-authorize</string>
+    <string name="delete_action">Delete</string>
+    <string name="cancel_action">Cancel</string>
+    
+    <!-- Dialogs -->
+    <string name="delete_dialog_title">Delete Video</string>
+    <string name="delete_dialog_message">Remove \"%1$s\" from your library?</string>
     
     <!-- Player -->
     <string name="player_title">Player</string>

@@ -30,10 +30,6 @@ class VideoImporter(
     
     suspend fun importVideo(uri: Uri): ImportResult = withContext(Dispatchers.IO) {
         try {
-            if (!takePersistablePermission(uri)) {
-                return@withContext ImportResult.Error(ImportError.PermissionDenied)
-            }
-            
             if (!isAllowedFormat(uri)) {
                 return@withContext ImportResult.Error(ImportError.UnsupportedFormat)
             }
@@ -43,6 +39,10 @@ class VideoImporter(
             
             if (!hasVideoTrack(uri)) {
                 return@withContext ImportResult.Error(ImportError.NoVideoTrack)
+            }
+            
+            if (!takePersistablePermission(uri)) {
+                return@withContext ImportResult.Error(ImportError.PermissionDenied)
             }
             
             val existingVideo = videoDao.getVideoByUri(uri.toString())
@@ -63,6 +63,53 @@ class VideoImporter(
             ImportResult.Error(ImportError.PermissionDenied)
         } catch (e: Exception) {
             ImportResult.Error(ImportError.Unknown)
+        }
+    }
+    
+    suspend fun reauthorizeVideo(videoId: Long, newUri: Uri): ImportResult = withContext(Dispatchers.IO) {
+        try {
+            val existingVideo = videoDao.getVideoById(videoId)
+                ?: return@withContext ImportResult.Error(ImportError.Unknown)
+            
+            if (!isAllowedFormat(newUri)) {
+                return@withContext ImportResult.Error(ImportError.UnsupportedFormat)
+            }
+            
+            val metadata = extractMetadata(newUri)
+                ?: return@withContext ImportResult.Error(ImportError.CorruptFile)
+            
+            if (!hasVideoTrack(newUri)) {
+                return@withContext ImportResult.Error(ImportError.NoVideoTrack)
+            }
+            
+            if (!takePersistablePermission(newUri)) {
+                return@withContext ImportResult.Error(ImportError.PermissionDenied)
+            }
+            
+            releasePersistablePermission(Uri.parse(existingVideo.uri))
+            
+            val updatedVideo = existingVideo.copy(
+                uri = newUri.toString(),
+                title = metadata.title,
+                durationMs = metadata.durationMs
+            )
+            videoDao.updateVideo(updatedVideo)
+            
+            ImportResult.Success(videoId)
+            
+        } catch (e: SecurityException) {
+            ImportResult.Error(ImportError.PermissionDenied)
+        } catch (e: Exception) {
+            ImportResult.Error(ImportError.Unknown)
+        }
+    }
+    
+    fun releasePersistablePermission(uri: Uri) {
+        try {
+            val releaseFlags = Intent.FLAG_GRANT_READ_URI_PERMISSION
+            context.contentResolver.releasePersistableUriPermission(uri, releaseFlags)
+        } catch (e: SecurityException) {
+            // Permission may already be released or was never held
         }
     }
     
@@ -97,7 +144,7 @@ class VideoImporter(
         return fileName?.substringAfterLast('.', "")?.takeIf { it.isNotEmpty() }
     }
     
-    private fun getFileName(uri: Uri): String? {
+    fun getFileName(uri: Uri): String? {
         var result: String? = null
         if (uri.scheme == ContentResolver.SCHEME_CONTENT) {
             context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
