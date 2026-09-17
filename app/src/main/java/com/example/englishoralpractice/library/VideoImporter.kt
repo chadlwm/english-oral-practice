@@ -86,7 +86,10 @@ class VideoImporter(
                 return@withContext ImportResult.Error(ImportError.PermissionDenied)
             }
             
-            releasePersistablePermission(Uri.parse(existingVideo.uri))
+            val oldUri = Uri.parse(existingVideo.uri)
+            if (oldUri.toString() != newUri.toString()) {
+                releasePersistablePermission(oldUri)
+            }
             
             val updatedVideo = existingVideo.copy(
                 uri = newUri.toString(),
