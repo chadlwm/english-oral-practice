@@ -1,143 +1,57 @@
-# English Oral Practice (口语练习)
+# 英语口语练习（English Oral Practice）
 
-Android app for English speaking practice with video-based learning.
+基于本地视频的 Android 英语口语练习应用。
 
-## Features
+## P0 功能
 
-### P0 (Current Release)
-- **US1: Video Import**
-  - Import local videos via SAF (Storage Access Framework)
-  - Persistent URI permissions (no file copying)
-  - Supported formats: MP4, MKV, WebM
-  - Validation: corrupt/invalid files are rejected with clear error messages
-  - Room database for library metadata
+- **导入视频（US1）**：通过 SAF 选择本地视频；持久化 URI 权限；白名单 mp4/mkv/webm；损坏/不支持有明确提示
+- **视频列表（US2）**：展示标题与时长；坏条目标记且不拖垮列表；支持重新授权与删除
+- **字幕（US3）**：支持内嵌轨与外挂 `.srt`；外挂优先；坏 SRT 回退内嵌/无则关轨；开关只控制当前生效源
+- **播控（US4）**：前进/后退、整段循环、A-B 循环；A-B 与 seek 同一状态机；ExoPlayer 单实例进出页释放
 
-- **US2: Video Library**
-  - Display imported videos with title and duration
-  - Tap to open player
-  - Graceful handling of inaccessible videos (marked as "bad")
-  - Delete videos from library
+P1 跟读评分、P2 学习报告尚未实现。
 
-### Stubbed for P1
-- **Subtitle Support**: SRT parsing, external SRT preferred over embedded
-- **Speech Recognition**: ASR integration, pronunciation scoring
+## 环境要求
 
-### Planned for P2
-- Learning reports and progress tracking
-
-## Tech Stack
-
-- **Language**: Kotlin
-- **UI**: Jetpack Compose + Material 3
-- **Video Player**: Media3 / ExoPlayer
-- **Database**: Room
-- **File Access**: SAF with `takePersistableUriPermission`
-- **Architecture**: MVVM with ViewModels
-
-## Project Structure
-
-```
-app/src/main/java/com/example/englishoralpractice/
-├── EnglishOralPracticeApp.kt    # Application class
-├── MainActivity.kt               # Entry point + Navigation
-├── library/                      # Video library module
-│   ├── data/                     # Room entities, DAO, database
-│   ├── domain/                   # Import errors, result types
-│   ├── ui/                       # LibraryScreen, LibraryViewModel
-│   └── VideoImporter.kt          # SAF import + validation
-├── player/                       # Video player module
-│   ├── PlayerScreen.kt
-│   └── PlayerViewModel.kt
-├── subtitle/                     # Subtitle module (P1 stub)
-│   └── SrtParser.kt
-├── speech/                       # Speech module (P1 stub)
-│   └── SpeechStub.kt
-└── ui/theme/                     # Compose theme
-    └── Theme.kt
-```
-
-## Requirements
-
-- Android Studio Hedgehog (2023.1.1) or newer
-- Android SDK 34 (compileSdk)
-- Minimum Android 8.0 (API 26)
+- Android Studio Hedgehog 或更新版本
 - JDK 17
+- compileSdk 34 / minSdk 26
 
-## Build & Run
-
-### In Android Studio
-
-1. Clone the repository:
-   ```bash
-   git clone <repo-url>
-   cd english-oral-practice
-   ```
-
-2. Open the project in Android Studio
-
-3. Wait for Gradle sync to complete
-
-4. Run on emulator or device:
-   - Select a device from the toolbar
-   - Click Run (▶) or press `Shift + F10`
-
-### Command Line (requires Android SDK)
+## 本地构建
 
 ```bash
-# Set ANDROID_HOME if not already set
-export ANDROID_HOME=/path/to/Android/Sdk
-
-# Build debug APK
 ./gradlew assembleDebug
-
-# Install on connected device
-./gradlew installDebug
-
-# APK location: app/build/outputs/apk/debug/app-debug.apk
 ```
 
-### Build Without Android SDK
+Debug APK 路径：`app/build/outputs/apk/debug/`。也可用 Android Studio 直接 Run。
 
-If building on a system without Android SDK, the project structure is complete and ready to open in Android Studio. The IDE will download necessary SDK components automatically.
+### 安装 Debug 包
 
-## Usage
+1. 开启手机「未知来源」或通过 `adb install app/build/outputs/apk/debug/*.apk`
+2. 当前产物为 **debug/未签名**，仅供开发与内测，**不可上架**
 
-1. **Import a Video**
-   - Tap the + FAB button
-   - Select a video file (MP4/MKV/WebM)
-   - The app will validate and add it to your library
+## CI / CD
 
-2. **Play a Video**
-   - Tap on any video in the library list
-   - Use ExoPlayer controls for playback
+| 触发 | 行为 |
+|------|------|
+| push / PR → `main` | 运行 `assembleDebug`，失败必红；成功上传 APK Artifact（不发 Release） |
+| 推送 `v*` tag（如 `v0.1.0`） | 编译 debug APK 并创建 GitHub Release；`versionName` 取自 tag，`versionCode` 为 CI run number；附件为 debug/unsigned，说明不可上架 |
 
-3. **Delete a Video**
-   - Tap the delete icon on a video item
-   - Confirm deletion
+工作流文件：`.github/workflows/ci.yml`、`.github/workflows/release.yml`。
 
-## Design Decisions
+### 验证首发 Release
 
-### SAF + Persistent URI
-- No file copying: videos stay in their original location
-- Permissions persist across app restarts
-- Better storage efficiency
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
 
-### Single ExoPlayer Instance
-- Held in PlayerViewModel, released on `onCleared()`
-- Never created during recomposition
-- Prevents resource leaks
+然后到仓库 Releases 页查看附件与说明。
 
-### Import Validation
-- Format whitelist (mp4/mkv/webm)
-- MediaMetadataRetriever for metadata extraction
-- MediaExtractor to verify video track exists
-- Clear error messages for all failure cases
+## 技术栈
 
-### Error Handling
-- Bad library items marked (not crashed)
-- URI accessibility checked before playback
-- Graceful degradation throughout
+Kotlin、Jetpack Compose、Media3/ExoPlayer、Room、SAF。
 
-## License
+## 许可证
 
-MIT License
+MIT
