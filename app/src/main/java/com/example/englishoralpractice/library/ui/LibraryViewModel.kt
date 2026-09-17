@@ -125,14 +125,17 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
                     return@withContext
                 }
                 
-                video.subtitleUri?.let { oldUri ->
-                    SubtitleManager.releasePersistablePermission(context, Uri.parse(oldUri))
-                }
+                val oldSubtitleUri = video.subtitleUri?.let { Uri.parse(it) }
+                val uriChanged = oldSubtitleUri?.toString() != subtitleUri.toString()
                 
                 if (!SubtitleManager.takePersistablePermission(context, subtitleUri)) {
                     _events.emit(LibraryEvent.SubtitleImportError("Permission denied"))
                     _uiState.value = _uiState.value.copy(isLoading = false)
                     return@withContext
+                }
+                
+                if (uriChanged && oldSubtitleUri != null) {
+                    SubtitleManager.releasePersistablePermission(context, oldSubtitleUri)
                 }
                 
                 videoDao.updateSubtitleUri(videoId, subtitleUri.toString())

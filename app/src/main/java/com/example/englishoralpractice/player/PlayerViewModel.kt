@@ -17,6 +17,7 @@ import com.example.englishoralpractice.subtitle.SubtitleCue
 import com.example.englishoralpractice.subtitle.SubtitleLoadResult
 import com.example.englishoralpractice.subtitle.SubtitleManager
 import com.example.englishoralpractice.subtitle.SubtitleSource
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -26,6 +27,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 data class PlayerUiState(
     val isLoading: Boolean = true,
@@ -145,7 +147,9 @@ class PlayerViewModel(
         val subtitleUri = video.subtitleUri?.let { Uri.parse(it) }
         
         viewModelScope.launch {
-            val result = SubtitleManager.loadSubtitles(context, videoUri, subtitleUri)
+            val result = withContext(Dispatchers.IO) {
+                SubtitleManager.loadSubtitles(context, videoUri, subtitleUri)
+            }
             
             when (result) {
                 is SubtitleLoadResult.Success -> {
@@ -173,24 +177,30 @@ class PlayerViewModel(
         when (source) {
             is SubtitleSource.External -> {
                 externalSubtitleCues = source.cues
+                _exoPlayer?.let { player ->
+                    player.trackSelectionParameters = player.trackSelectionParameters
+                        .buildUpon()
+                        .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
+                        .build()
+                }
                 _uiState.value = _uiState.value.copy(subtitleSource = source)
             }
             is SubtitleSource.Embedded -> {
                 _exoPlayer?.let { player ->
-                    for (i in 0 until player.currentTracks.groups.size) {
-                        val group = player.currentTracks.groups[i]
-                        if (group.type == C.TRACK_TYPE_TEXT) {
-                            player.trackSelectionParameters = player.trackSelectionParameters
-                                .buildUpon()
-                                .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
-                                .build()
-                            break
-                        }
-                    }
+                    player.trackSelectionParameters = player.trackSelectionParameters
+                        .buildUpon()
+                        .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
+                        .build()
                 }
                 _uiState.value = _uiState.value.copy(subtitleSource = source)
             }
             is SubtitleSource.None -> {
+                _exoPlayer?.let { player ->
+                    player.trackSelectionParameters = player.trackSelectionParameters
+                        .buildUpon()
+                        .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
+                        .build()
+                }
                 _uiState.value = _uiState.value.copy(
                     subtitleSource = source,
                     subtitleEnabled = false

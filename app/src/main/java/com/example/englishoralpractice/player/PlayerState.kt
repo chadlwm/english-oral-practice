@@ -116,7 +116,7 @@ class PlayerStateManager(
     fun shouldLoopToStart(currentPositionMs: Long): Boolean {
         return when (_loopMode) {
             LoopMode.OFF -> false
-            LoopMode.ALL -> currentPositionMs >= _duration - 100
+            LoopMode.ALL -> false
             LoopMode.AB -> {
                 val state = _abLoopState
                 if (state is ABLoopState.Active) {
