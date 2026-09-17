@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">English Oral Practice</string>
+    
+    <!-- Library -->
+    <string name="library_title">My Videos</string>
+    <string name="library_empty">No videos yet.\nTap + to import a video.</string>
+    <string name="library_import">Import Video</string>
+    <string name="library_item_corrupted">Unable to load - tap to re-authorize</string>
+    
+    <!-- Import -->
+    <string name="import_error_unsupported_format">Unsupported format. Please select mp4, mkv, or webm files only.</string>
+    <string name="import_error_no_video_track">This file has no video track.</string>
+    <string name="import_error_corrupt">Unable to read this file. It may be corrupted.</string>
+    <string name="import_error_permission">Permission denied. Please grant access to read this file.</string>
+    <string name="import_error_unknown">Failed to import video.</string>
+    <string name="import_success">Video imported successfully!</string>
+    <string name="reauthorize_success">Video re-authorized successfully!</string>
+    
+    <!-- Actions -->
+    <string name="reauthorize_action">Re-authorize</string>
+    <string name="delete_action">Delete</string>
+    <string name="cancel_action">Cancel</string>
+    
+    <!-- Dialogs -->
+    <string name="delete_dialog_title">Delete Video</string>
+    <string name="delete_dialog_message">Remove \"%1$s\" from your library?</string>
+    
+    <!-- Player -->
+    <string name="player_title">Player</string>
+    <string name="player_video_not_found">Video not found</string>
+    
+    <!-- Subtitle -->
+    <string name="subtitle_parse_error">Failed to parse subtitle file. Using embedded subtitles if available.</string>
+    <string name="subtitle_none">No subtitles available</string>
+    
+    <!-- Duration format -->
+    <string name="duration_format_hours">%1$d:%2$02d:%3$02d</string>
+    <string name="duration_format_minutes">%1$d:%2$02d</string>
+</resources>
