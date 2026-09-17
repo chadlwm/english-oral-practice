@@ -9,6 +9,7 @@ import com.example.englishoralpractice.library.VideoImporter
 import com.example.englishoralpractice.library.data.VideoEntity
 import com.example.englishoralpractice.library.domain.ImportError
 import com.example.englishoralpractice.library.domain.ImportResult
+import com.example.englishoralpractice.subtitle.SubtitleManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -28,14 +29,18 @@ data class VideoItem(
     val title: String,
     val durationMs: Long,
     val uri: String,
+    val subtitleUri: String? = null,
+    val hasSubtitle: Boolean = false,
     val isPlayable: Boolean = true
 )
 
 sealed class LibraryEvent {
-    data class ImportError(val error: com.example.englishoralpractice.library.domain.ImportError) : LibraryEvent()
+    data class VideoImportError(val error: ImportError) : LibraryEvent()
     data class ImportSuccess(val videoId: Long) : LibraryEvent()
     data class ReauthorizeSuccess(val videoId: Long) : LibraryEvent()
     data class NavigateToPlayer(val videoId: Long) : LibraryEvent()
+    data class SubtitleImportSuccess(val videoId: Long) : LibraryEvent()
+    data class SubtitleImportError(val message: String) : LibraryEvent()
 }
 
 class LibraryViewModel(application: Application) : AndroidViewModel(application) {
@@ -73,7 +78,7 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
                     _events.emit(LibraryEvent.ImportSuccess(result.videoId))
                 }
                 is ImportResult.Error -> {
-                    _events.emit(LibraryEvent.ImportError(result.error))
+                    _events.emit(LibraryEvent.VideoImportError(result.error))
                 }
             }
             
@@ -90,11 +95,69 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
                     _events.emit(LibraryEvent.ReauthorizeSuccess(result.videoId))
                 }
                 is ImportResult.Error -> {
-                    _events.emit(LibraryEvent.ImportError(result.error))
+                    _events.emit(LibraryEvent.VideoImportError(result.error))
                 }
             }
             
             _uiState.value = _uiState.value.copy(isLoading = false)
+        }
+    }
+    
+    fun importSubtitle(videoId: Long, subtitleUri: Uri) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoading = true)
+            
+            withContext(Dispatchers.IO) {
+                val context = getApplication<EnglishOralPracticeApp>()
+                
+                if (!SubtitleManager.isAllowedSubtitleFormat(context, subtitleUri)) {
+                    _events.emit(LibraryEvent.SubtitleImportError(
+                        "Unsupported subtitle format. Only .srt files are supported."
+                    ))
+                    _uiState.value = _uiState.value.copy(isLoading = false)
+                    return@withContext
+                }
+                
+                val video = videoDao.getVideoById(videoId)
+                if (video == null) {
+                    _events.emit(LibraryEvent.SubtitleImportError("Video not found"))
+                    _uiState.value = _uiState.value.copy(isLoading = false)
+                    return@withContext
+                }
+                
+                val oldSubtitleUri = video.subtitleUri?.let { Uri.parse(it) }
+                val uriChanged = oldSubtitleUri?.toString() != subtitleUri.toString()
+                
+                if (!SubtitleManager.takePersistablePermission(context, subtitleUri)) {
+                    _events.emit(LibraryEvent.SubtitleImportError("Permission denied"))
+                    _uiState.value = _uiState.value.copy(isLoading = false)
+                    return@withContext
+                }
+                
+                if (uriChanged && oldSubtitleUri != null) {
+                    SubtitleManager.releasePersistablePermission(context, oldSubtitleUri)
+                }
+                
+                videoDao.updateSubtitleUri(videoId, subtitleUri.toString())
+                _events.emit(LibraryEvent.SubtitleImportSuccess(videoId))
+            }
+            
+            _uiState.value = _uiState.value.copy(isLoading = false)
+        }
+    }
+    
+    fun removeSubtitle(videoId: Long) {
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) {
+                val context = getApplication<EnglishOralPracticeApp>()
+                val video = videoDao.getVideoById(videoId)
+                
+                video?.subtitleUri?.let { subtitleUri ->
+                    SubtitleManager.releasePersistablePermission(context, Uri.parse(subtitleUri))
+                }
+                
+                videoDao.updateSubtitleUri(videoId, null)
+            }
         }
     }
     
@@ -113,6 +176,10 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
                 val video = videoDao.getVideoById(videoId)
                 if (video != null) {
                     videoImporter.releasePersistablePermission(Uri.parse(video.uri))
+                    video.subtitleUri?.let { subtitleUri ->
+                        val context = getApplication<EnglishOralPracticeApp>()
+                        SubtitleManager.releasePersistablePermission(context, Uri.parse(subtitleUri))
+                    }
                     videoDao.deleteVideoById(videoId)
                 }
             }
@@ -126,6 +193,8 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
             title = title,
             durationMs = durationMs,
             uri = uri,
+            subtitleUri = subtitleUri,
+            hasSubtitle = subtitleUri != null,
             isPlayable = isPlayable
         )
     }

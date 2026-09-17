@@ -2,16 +2,9 @@ package com.example.englishoralpractice.subtitle
 
 import android.content.Context
 import android.net.Uri
+import java.io.BufferedReader
+import java.io.InputStreamReader
 
-/**
- * SRT Subtitle Parser - Stub for P1
- * 
- * Planned functionality:
- * - Parse .srt files only
- * - Parse fail → show message + fall back to embedded subtitles
- * - No embedded subtitles → disable track without crash
- * - External SRT preferred over embedded
- */
 data class SubtitleCue(
     val index: Int,
     val startTimeMs: Long,
@@ -26,62 +19,110 @@ sealed class SrtParseResult {
 
 object SrtParser {
     
-    /**
-     * Parse an SRT file from the given URI.
-     * 
-     * Stub implementation - returns empty result for P1.
-     */
+    private val TIMESTAMP_PATTERN = Regex(
+        """(\d{1,2}):(\d{2}):(\d{2})[,.](\d{3})\s*-->\s*(\d{1,2}):(\d{2}):(\d{2})[,.](\d{3})"""
+    )
+    
     fun parse(context: Context, uri: Uri): SrtParseResult {
-        // TODO: Implement SRT parsing in P1
-        // 1. Read file content from URI
-        // 2. Parse SRT format:
-        //    - Index number
-        //    - Timestamp: HH:MM:SS,mmm --> HH:MM:SS,mmm
-        //    - Text (can be multiline)
-        //    - Empty line separator
-        // 3. Return list of SubtitleCue or Error
+        return try {
+            val content = readContent(context, uri)
+                ?: return SrtParseResult.Error("Unable to read subtitle file")
+            
+            parseContent(content)
+        } catch (e: SecurityException) {
+            SrtParseResult.Error("Permission denied to read subtitle file")
+        } catch (e: Exception) {
+            SrtParseResult.Error("Failed to parse subtitle file: ${e.message}")
+        }
+    }
+    
+    private fun readContent(context: Context, uri: Uri): String? {
+        return try {
+            context.contentResolver.openInputStream(uri)?.use { inputStream ->
+                BufferedReader(InputStreamReader(inputStream, Charsets.UTF_8)).use { reader ->
+                    reader.readText()
+                }
+            }
+        } catch (e: Exception) {
+            null
+        }
+    }
+    
+    fun parseContent(content: String): SrtParseResult {
+        val cues = mutableListOf<SubtitleCue>()
+        val blocks = content.trim()
+            .replace("\r\n", "\n")
+            .replace("\r", "\n")
+            .split(Regex("\n\\s*\n"))
+            .filter { it.isNotBlank() }
         
-        return SrtParseResult.Error("SRT parsing not yet implemented (P1 stub)")
+        for (block in blocks) {
+            val lines = block.trim().lines()
+            if (lines.size < 2) continue
+            
+            val indexLine = lines[0].trim()
+            val index = indexLine.toIntOrNull()
+            if (index == null) {
+                continue
+            }
+            
+            val timestampLine = lines[1].trim()
+            val timestampMatch = TIMESTAMP_PATTERN.find(timestampLine)
+            if (timestampMatch == null) {
+                return SrtParseResult.Error("Invalid timestamp format at cue $index")
+            }
+            
+            val (startH, startM, startS, startMs, endH, endM, endS, endMs) = 
+                timestampMatch.destructured
+            
+            val startTimeMs = parseTimestampComponents(
+                startH.toInt(), startM.toInt(), startS.toInt(), startMs.toInt()
+            )
+            val endTimeMs = parseTimestampComponents(
+                endH.toInt(), endM.toInt(), endS.toInt(), endMs.toInt()
+            )
+            
+            if (startTimeMs == null || endTimeMs == null) {
+                return SrtParseResult.Error("Invalid timestamp values at cue $index")
+            }
+            
+            val text = if (lines.size > 2) {
+                lines.subList(2, lines.size).joinToString("\n").trim()
+            } else {
+                ""
+            }
+            
+            cues.add(SubtitleCue(
+                index = index,
+                startTimeMs = startTimeMs,
+                endTimeMs = endTimeMs,
+                text = text
+            ))
+        }
+        
+        if (cues.isEmpty()) {
+            return SrtParseResult.Error("No valid subtitle cues found")
+        }
+        
+        return SrtParseResult.Success(cues.sortedBy { it.startTimeMs })
     }
     
-    /**
-     * Convert timestamp string to milliseconds.
-     * Format: HH:MM:SS,mmm
-     */
+    private fun parseTimestampComponents(hours: Int, minutes: Int, seconds: Int, millis: Int): Long? {
+        if (minutes < 0 || minutes > 59 || seconds < 0 || seconds > 59 || millis < 0 || millis > 999) {
+            return null
+        }
+        return (hours * 3600000L) + (minutes * 60000L) + (seconds * 1000L) + millis
+    }
+    
     fun parseTimestamp(timestamp: String): Long? {
-        // TODO: Implement in P1
-        // Example: "00:01:23,456" -> 83456
-        return null
+        val parts = timestamp.trim().split(":", ",", ".")
+        if (parts.size != 4) return null
+        
+        val hours = parts[0].toIntOrNull() ?: return null
+        val minutes = parts[1].toIntOrNull() ?: return null
+        val seconds = parts[2].toIntOrNull() ?: return null
+        val millis = parts[3].toIntOrNull() ?: return null
+        
+        return parseTimestampComponents(hours, minutes, seconds, millis)
     }
-}
-
-/**
- * Subtitle track manager - handles subtitle source selection.
- * 
- * Priority:
- * 1. External SRT file (if available and valid)
- * 2. Embedded subtitle track (if available)
- * 3. None (disable subtitles gracefully)
- */
-object SubtitleManager {
-    
-    /**
-     * Get the best available subtitle source for a video.
-     * 
-     * Stub implementation for P1.
-     */
-    fun getSubtitleSource(
-        context: Context,
-        videoUri: Uri,
-        externalSrtUri: Uri?
-    ): SubtitleSource {
-        // TODO: Implement in P1
-        return SubtitleSource.None
-    }
-}
-
-sealed class SubtitleSource {
-    data class External(val uri: Uri, val cues: List<SubtitleCue>) : SubtitleSource()
-    data class Embedded(val trackIndex: Int) : SubtitleSource()
-    data object None : SubtitleSource()
 }

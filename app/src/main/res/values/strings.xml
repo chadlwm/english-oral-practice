@@ -29,10 +29,32 @@
     <!-- Player -->
     <string name="player_title">Player</string>
     <string name="player_video_not_found">Video not found</string>
+    <string name="play">Play</string>
+    <string name="pause">Pause</string>
+    <string name="seek_forward">Seek forward 5 seconds</string>
+    <string name="seek_backward">Seek backward 5 seconds</string>
+    
+    <!-- Loop modes -->
+    <string name="loop_off">Loop: Off</string>
+    <string name="loop_all">Loop: All</string>
+    <string name="loop_ab">Loop: A-B</string>
+    
+    <!-- A-B Loop -->
+    <string name="set_point_a">Set A</string>
+    <string name="set_point_b">Set B</string>
+    <string name="clear_ab_loop">Clear</string>
+    <string name="ab_loop_invalid">Point A must be before point B</string>
+    <string name="ab_loop_set_a_first">Set point A first</string>
     
     <!-- Subtitle -->
     <string name="subtitle_parse_error">Failed to parse subtitle file. Using embedded subtitles if available.</string>
     <string name="subtitle_none">No subtitles available</string>
+    <string name="subtitle_disabled">Subtitles disabled</string>
+    <string name="toggle_subtitles">Toggle subtitles</string>
+    <string name="subtitle_unsupported_format">Unsupported subtitle format. Only .srt files are supported.</string>
+    <string name="subtitle_import_success">Subtitle imported successfully!</string>
+    <string name="add_subtitle">Add subtitle</string>
+    <string name="has_subtitle">Has subtitle</string>
     
     <!-- Duration format -->
     <string name="duration_format_hours">%1$d:%2$02d:%3$02d</string>
