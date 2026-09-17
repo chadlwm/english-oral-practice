@@ -27,6 +27,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Subtitles
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
@@ -70,6 +71,7 @@ fun LibraryScreen(
     val uiState by viewModel.uiState.collectAsState()
     var videoToDelete by remember { mutableStateOf<VideoItem?>(null) }
     var videoToReauthorize by remember { mutableStateOf<VideoItem?>(null) }
+    var videoForSubtitle by remember { mutableStateOf<VideoItem?>(null) }
     
     val videoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
@@ -88,10 +90,21 @@ fun LibraryScreen(
         videoToReauthorize = null
     }
     
+    val subtitlePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri: Uri? ->
+        uri?.let { subtitleUri ->
+            videoForSubtitle?.let { video ->
+                viewModel.importSubtitle(video.id, subtitleUri)
+            }
+        }
+        videoForSubtitle = null
+    }
+    
     LaunchedEffect(Unit) {
         viewModel.events.collect { event ->
             when (event) {
-                is LibraryEvent.ImportError -> {
+                is LibraryEvent.VideoImportError -> {
                     Toast.makeText(
                         context,
                         context.getString(event.error.messageResId),
@@ -114,6 +127,20 @@ fun LibraryScreen(
                 }
                 is LibraryEvent.NavigateToPlayer -> {
                     onNavigateToPlayer(event.videoId)
+                }
+                is LibraryEvent.SubtitleImportSuccess -> {
+                    Toast.makeText(
+                        context,
+                        context.getString(R.string.subtitle_import_success),
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+                is LibraryEvent.SubtitleImportError -> {
+                    Toast.makeText(
+                        context,
+                        event.message,
+                        Toast.LENGTH_LONG
+                    ).show()
                 }
             }
         }
@@ -166,6 +193,10 @@ fun LibraryScreen(
                         onReauthorizeClick = { video ->
                             videoToReauthorize = video
                             reauthorizePickerLauncher.launch(arrayOf("video/*"))
+                        },
+                        onSubtitleClick = { video ->
+                            videoForSubtitle = video
+                            subtitlePickerLauncher.launch(arrayOf("*/*"))
                         }
                     )
                 }
@@ -219,7 +250,8 @@ private fun VideoList(
     videos: List<VideoItem>,
     onVideoClick: (Long) -> Unit,
     onDeleteClick: (VideoItem) -> Unit,
-    onReauthorizeClick: (VideoItem) -> Unit
+    onReauthorizeClick: (VideoItem) -> Unit,
+    onSubtitleClick: (VideoItem) -> Unit
 ) {
     LazyColumn(
         contentPadding = PaddingValues(16.dp),
@@ -233,7 +265,8 @@ private fun VideoList(
                 video = video,
                 onClick = { onVideoClick(video.id) },
                 onDeleteClick = { onDeleteClick(video) },
-                onReauthorizeClick = { onReauthorizeClick(video) }
+                onReauthorizeClick = { onReauthorizeClick(video) },
+                onSubtitleClick = { onSubtitleClick(video) }
             )
         }
     }
@@ -244,7 +277,8 @@ private fun VideoListItem(
     video: VideoItem,
     onClick: () -> Unit,
     onDeleteClick: () -> Unit,
-    onReauthorizeClick: () -> Unit
+    onReauthorizeClick: () -> Unit,
+    onSubtitleClick: () -> Unit
 ) {
     Card(
         modifier = Modifier
@@ -304,15 +338,40 @@ private fun VideoListItem(
                     }
                 )
                 Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = if (video.isPlayable) {
-                        formatDuration(video.durationMs)
-                    } else {
-                        stringResource(R.string.library_item_corrupted)
-                    },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = if (video.isPlayable) {
+                            formatDuration(video.durationMs)
+                        } else {
+                            stringResource(R.string.library_item_corrupted)
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                    )
+                    if (video.hasSubtitle) {
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Icon(
+                            imageVector = Icons.Default.Subtitles,
+                            contentDescription = stringResource(R.string.has_subtitle),
+                            modifier = Modifier.size(14.dp),
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+            }
+            
+            if (video.isPlayable) {
+                IconButton(onClick = onSubtitleClick) {
+                    Icon(
+                        imageVector = Icons.Default.Subtitles,
+                        contentDescription = stringResource(R.string.add_subtitle),
+                        tint = if (video.hasSubtitle) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                        }
+                    )
+                }
             }
             
             if (!video.isPlayable) {
